@@ -1,45 +1,40 @@
 const express = require("express");
 const app = express();
-const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
-const passportJwt = require("passport-jwt");
-// const JWtStrategy = passportJwt.Strategy;
-// const ExtractJWT = passportJwt.ExtractJwt;
+require("dotenv").config({ path: ".dev.env" });
+const { mainCalled } = require("./jwtStrategy");
+const { localAuth } = require("./localStrategy");
 const LocalStrategy = require("passport-local").Strategy;
 app.use(passport.initialize());
-const data = JSON.parse(fs.readFileSync("./data.json", { encoding: "utf-8" }));
+passport.use(new LocalStrategy(localAuth));
+mainCalled(passport);
 
-passport.use(
-  new LocalStrategy((username, password, callback) => {
-    const found = data.filter((_data) => {
-      if (_data.username === username && _data.password === password) {
-        return _data;
-      }
-    });
-    if (found.length) {
-      return callback(null, found[0], {
-        message: "success in authenticationg you",
-      });
-    }
-    return callback(null, false, {
-      message: "sorry couldn't authenticate you",
-    });
-  })
-);
+console.log(process.env.NODE_ENV);
+
 app.use(express.json());
-app.post("/login", (req, res, next) => {
-  passport.authenticate("local", { session: false }, (err, user, info) => {
-    if (err || !user) {
+app.post(
+  "/login",
+  passport.authenticate("local", { session: false }),
+  (req, res) => {
+    if (!req.user) {
       return res
         .status(400)
         .json({ message: "sorry couldn't authenticate you" });
     }
-    req.user = user;
-    const token = jwt.sign(user, "my_secret");
+    const token = jwt.sign(req.user, process.env.SECRET);
     return res.status(200).send({ token: token });
-  })(req, res);
-});
-app.listen(3000, () => {
-  console.log(`server listening on port 3000`);
+  }
+);
+app.get(
+  "/check",
+  passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    console.log(req.user);
+    res.send({ message: "inside checker funtion" });
+  }
+);
+const port = process.env.PORT;
+app.listen(port, () => {
+  console.log(`server listening on port ${port}`);
 });
